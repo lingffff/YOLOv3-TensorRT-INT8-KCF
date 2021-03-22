@@ -384,7 +384,7 @@ int read_files_in_dir(const char *p_dir_name, std::vector<std::string> &file_nam
 #define TURN_SENSIT 2
 #define MAX_SPEED 20
 #define STOP_Y 420
-#define INTER 3
+#define INTER 10
 
 // Some orders
 #define do_stop     "\xff\xfe\x01\x00\x00\x00\x00\x00\x00\x00"
@@ -484,13 +484,12 @@ int main(int argc, char** argv) {
     int mid_x, mid_y, mid_size;
     cv::Mat img, pr_img;
     std::vector<Yolo::Detection> res;
-    cv::Rect r;
-    int count = 0;
+    cv::Rect2d r;
+    int count = 1;
     // set input video
 	cv::VideoCapture cap(0);
     // create a tracker object
 	cv::Ptr<cv::TrackerKCF> tracker = cv::TrackerKCF::create();
-    /*
     while(!res.size()) { // test first detect to init tracker
         cap >> img;
         pr_img = preprocess_img(img);
@@ -502,11 +501,10 @@ int main(int argc, char** argv) {
         // Run inference
         doInference(*context, data, prob, 1);
         nms(res, prob);
-        r = get_rect(img, res[0].bbox);
     }
+    r = get_rect(img, res[0].bbox);
     // initialize the tracker
-	//tracker->init(img, r);
-    */
+	tracker->init(img, r);
     for (;;) {
         cap >> img;
 	    auto start = std::chrono::system_clock::now();
@@ -519,21 +517,24 @@ int main(int argc, char** argv) {
             }
             // Run inference
             doInference(*context, data, prob, 1);
+            res.clear();
             nms(res, prob);
-            if(res.size()) {
-                r = get_rect(img, res[0].bbox);
-            }
+            
         }
-        //else tracker->update(img, r);
-        //count = (count + 1) % INTER;
+        else tracker->update(img, r);
+        count = (count + 1) % INTER;
 
         auto end = std::chrono::system_clock::now();
         if(res.size()) {
+            r = get_rect(img, res[0].bbox);
             mid_x = int(r.x + r.width / 2);
             mid_y = int(r.y + r.height / 2);
             mid_size = int(r.width);
             car_Control(mid_x, mid_y, mid_size, fd);
             cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
+        }
+        else {
+            car_Control(0, 0, 0, fd);
         }
         std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
         cv::imshow("frame", img);
