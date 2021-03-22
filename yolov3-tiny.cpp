@@ -12,6 +12,9 @@
 #include "logging.h"
 #include "yololayer.h"
 
+#include "uart.h"
+#include <opencv2/tracking.hpp>
+
 #define CHECK(status) \
     do\
     {\
@@ -377,6 +380,48 @@ int read_files_in_dir(const char *p_dir_name, std::vector<std::string> &file_nam
     return 0;
 }
 
+#define MID_SENSIT 40
+#define TURN_SENSIT 2
+#define MAX_SPEED 20
+#define STOP_Y 420
+#define INTER 3
+
+// Some orders
+#define do_stop     "\xff\xfe\x01\x00\x00\x00\x00\x00\x00\x00"
+
+void car_Control(int x, int y, int size, int f)
+{
+	int z;
+	char command[11] = "\xff\xfe\x01\x00\x00\x00\x00\x00\x00\x01";
+    // for safety; if no object
+	if (x == 0 && y == 0) {
+		uartSend(command, 10, f);
+		return;
+	}
+	x = x - 320; y = STOP_Y - y;
+	// if already in the center
+	if (abs(x) < MID_SENSIT && abs(y) < MID_SENSIT && size > 140) {
+		uartSend(command, 10, f);
+		return;
+	}
+	if (x < 0) {
+		command[9] = command[9] | 0x04;
+		command[9] = command[9] & 0x04;
+	}
+	if (y < 0) {
+		command[9] = command[9] | 0x02;
+	}
+	x = abs(MAX_SPEED * x / 320);
+	z = TURN_SENSIT * x;
+	y = abs(MAX_SPEED * y / 240);
+	//command[4] = x + 5;
+	command[6] = y + 5;
+	command[8] = z;
+	//printf("(%d, %d, %d)\n", x, y, z);
+	uartSend(command, 10, f);
+}
+
+
 int main(int argc, char** argv) {
     cudaSetDevice(DEVICE);
     // create a model using the API directly and serialize it to a stream
@@ -432,50 +477,64 @@ int main(int argc, char** argv) {
     assert(context != nullptr);
     delete[] trtModelStream;
 
-    cv::Mat img;
+    // init uart
+	int fd = openUart(0);
+	uartInit(115200, 8, 'n', 1, fd);
+    // init
+    int mid_x, mid_y, mid_size;
+    cv::Mat img, pr_img;
+    std::vector<Yolo::Detection> res;
+    cv::Rect r;
+    int count = 0;
     // set input video
 	cv::VideoCapture cap(0);
- 
-    //int fcount = 0;
-    //for (auto f: file_names) {
-    for (;;) {
+    // create a tracker object
+	cv::Ptr<cv::TrackerKCF> tracker = cv::TrackerKCF::create();
+    /*
+    while(!res.size()) { // test first detect to init tracker
         cap >> img;
-	    auto start = std::chrono::system_clock::now();
-        //fcount++;
-        //std::cout << fcount << "  " << f << std::endl;
-        //cv::Mat img = cv::imread(std::string(argv[2]) + "/" + f);
-        //if (img.empty()) continue;
-        cv::Mat pr_img = preprocess_img(img);
+        pr_img = preprocess_img(img);
         for (int i = 0; i < INPUT_H * INPUT_W; i++) {
             data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
             data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
             data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
         }
-
         // Run inference
-        //auto start = std::chrono::system_clock::now();
         doInference(*context, data, prob, 1);
-        //auto end = std::chrono::system_clock::now();
-        //std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-	//auto time_span = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
-        //std::cout << 1/double(time_span.count()) << "fps" << std::endl;
-        std::vector<Yolo::Detection> res;
         nms(res, prob);
-        //for (int i=0; i<20; i++) {
-        //    std::cout << prob[i] << ",";
-        //}
-        //std::cout << res.size() << std::endl;
-        for (size_t j = 0; j < res.size(); j++) {
-            //float *p = (float*)&res[j];
-            //for (size_t k = 0; k < 7; k++) {
-            //    std::cout << p[k] << ", ";
-            //}
-            //std::cout << std::endl;
-            cv::Rect r = get_rect(img, res[j].bbox);
-            cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
-            cv::putText(img, std::to_string((int)res[j].class_id), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0xFF), 2);
+        r = get_rect(img, res[0].bbox);
+    }
+    // initialize the tracker
+	//tracker->init(img, r);
+    */
+    for (;;) {
+        cap >> img;
+	    auto start = std::chrono::system_clock::now();
+        if (!count){
+            pr_img = preprocess_img(img);
+            for (int i = 0; i < INPUT_H * INPUT_W; i++) {
+                data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
+                data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
+                data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
+            }
+            // Run inference
+            doInference(*context, data, prob, 1);
+            nms(res, prob);
+            if(res.size()) {
+                r = get_rect(img, res[0].bbox);
+            }
         }
-	auto end = std::chrono::system_clock::now();
+        //else tracker->update(img, r);
+        //count = (count + 1) % INTER;
+
+        auto end = std::chrono::system_clock::now();
+        if(res.size()) {
+            mid_x = int(r.x + r.width / 2);
+            mid_y = int(r.y + r.height / 2);
+            mid_size = int(r.width);
+            car_Control(mid_x, mid_y, mid_size, fd);
+            cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
+        }
         std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
         cv::imshow("frame", img);
         if (cv::waitKey(1) == 27) break;
@@ -485,5 +544,7 @@ int main(int argc, char** argv) {
     context->destroy();
     engine->destroy();
     runtime->destroy();
+    uartSend(do_stop, 10, fd);
+	close(fd);
     return 0;
 }

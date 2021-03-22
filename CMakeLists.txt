@@ -31,7 +31,7 @@ target_link_libraries(yololayer nvinfer cudart)
 find_package(OpenCV)
 include_directories(OpenCV_INCLUDE_DIRS)
 
-add_executable(yolov3-tiny ${PROJECT_SOURCE_DIR}/yolov3-tiny.cpp)
+add_executable(yolov3-tiny ${PROJECT_SOURCE_DIR}/yolov3-tiny.cpp ${PROJECT_SOURCE_DIR}/uart.cpp)
 target_link_libraries(yolov3-tiny nvinfer)
 target_link_libraries(yolov3-tiny cudart)
 target_link_libraries(yolov3-tiny yololayer)
