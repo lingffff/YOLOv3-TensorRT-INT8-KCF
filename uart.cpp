@@ -2,14 +2,14 @@
 
 /**
 * openUart
-* @param  comport ÏëÒª´ò¿ªµÄ´®¿ÚºÅ
-* return  Ê§°Ü·µ»Ø-1
+* @param  comport æƒ³è¦æ‰“å¼€çš„ä¸²å£å·
+* return  å¤±è´¥è¿”å›-1
 */
 int openUart(int comport)
 {
 	int fd;
 	const char *dev[] = { "/dev/ttyUSB0", "/dev/ttyTHS2" };
-	//ÈğÌ©¿Æ¼¼Ö»Áô³öÀ´Á½Â·´®¿Ú£¬UART0Îªµ÷ÊÔ¿Ú£¬UART1ÎªÆÕÍ¨´®¿Ú£¬ËùÒÔÔÛÃÇÊ¹ÓÃUART1
+	//å®šä¹‰ä¸¤è·¯ä¸²å£ï¼ŒUART0ä¸ºUSBè½¬ä¸²å£ï¼ŒUART1ä¸ºé»˜è®¤ä¸²å£
 	if (comport == 0)
 	{
 		fd = open(dev[0], O_RDWR | O_NOCTTY | O_NDELAY);
@@ -34,23 +34,23 @@ int openUart(int comport)
 
 /**
 * uartInit
-* @param  nSpeed ²¨ÌØÂÊ  nBits Í£Ö¹Î» nEvent ÆæÅ¼Ğ£ÑéÎ» nStop Í£Ö¹Î»
-* @return  ·µ»Ø-1Îª³õÊ¼»¯Ê§°Ü
+* @param  nSpeed æ³¢ç‰¹ç‡  nBits åœæ­¢ä½ nEvent å¥‡å¶æ ¡éªŒä½ nStop åœæ­¢ä½
+* @return  è¿”å›-1ä¸ºåˆå§‹åŒ–å¤±è´¥
 */
 int uartInit(int nSpeed, int nBits, char nEvent, int nStop, int fd)
 {
 	struct termios newtio, oldtio;
-	/*±£´æ²âÊÔÏÖÓĞ´®¿Ú²ÎÊıÉèÖÃ£¬ÔÚÕâÀïÈç¹û´®¿ÚºÅµÈ³ö´í£¬»áÓĞÏà¹ØµÄ³ö´íĞÅÏ¢*/
+	/*ä¿å­˜æµ‹è¯•ç°æœ‰ä¸²å£å‚æ•°è®¾ç½®ï¼Œåœ¨è¿™é‡Œå¦‚æœä¸²å£å·ç­‰å‡ºé”™ï¼Œä¼šæœ‰ç›¸å…³çš„å‡ºé”™ä¿¡æ¯*/
 	if (tcgetattr(fd, &oldtio) != 0) {
 		perror("SetupSerial 1");
 		printf("tcgetattr( fd,&oldtio) -> %d\n", tcgetattr(fd, &oldtio));
 		return -1;
 	}
 	bzero(&newtio, sizeof(newtio));
-	/*²½ÖèÒ»£¬ÉèÖÃ×Ö·û´óĞ¡*/
+	/*æ­¥éª¤ä¸€ï¼Œè®¾ç½®å­—ç¬¦å¤§å°*/
 	newtio.c_cflag |= CLOCAL | CREAD;
 	newtio.c_cflag &= ~CSIZE;
-	/*ÉèÖÃÍ£Ö¹Î»*/
+	/*è®¾ç½®åœæ­¢ä½*/
 	switch (nBits)
 	{
 	case 7:
@@ -60,29 +60,29 @@ int uartInit(int nSpeed, int nBits, char nEvent, int nStop, int fd)
 		newtio.c_cflag |= CS8;
 		break;
 	}
-	/*ÉèÖÃÆæÅ¼Ğ£ÑéÎ»*/
+	/*è®¾ç½®å¥‡å¶æ ¡éªŒä½*/
 	switch (nEvent)
 	{
 	case 'o':
-	case 'O': //ÆæÊı
+	case 'O': //å¥‡æ•°
 		newtio.c_cflag |= PARENB;
 		newtio.c_cflag |= PARODD;
 		newtio.c_iflag |= (INPCK | ISTRIP);
 		break;
 	case 'e':
-	case 'E': //Å¼Êı
+	case 'E': //å¶æ•°
 		newtio.c_iflag |= (INPCK | ISTRIP);
 		newtio.c_cflag |= PARENB;
 		newtio.c_cflag &= ~PARODD;
 		break;
 	case 'n':
-	case 'N':  //ÎŞÆæÅ¼Ğ£ÑéÎ»
+	case 'N':  //æ— å¥‡å¶æ ¡éªŒä½
 		newtio.c_cflag &= ~PARENB;
 		break;
 	default:
 		break;
 	}
-	/*ÉèÖÃ²¨ÌØÂÊ*/
+	/*è®¾ç½®æ³¢ç‰¹ç‡*/
 	switch (nSpeed)
 	{
 	case 2400:
@@ -110,17 +110,17 @@ int uartInit(int nSpeed, int nBits, char nEvent, int nStop, int fd)
 		cfsetospeed(&newtio, B9600);
 		break;
 	}
-	/*ÉèÖÃÍ£Ö¹Î»*/
+	/*è®¾ç½®åœæ­¢ä½*/
 	if (nStop == 1)
 		newtio.c_cflag &= ~CSTOPB;
 	else if (nStop == 2)
 		newtio.c_cflag |= CSTOPB;
-	/*ÉèÖÃµÈ´ıÊ±¼äºÍ×îĞ¡½ÓÊÕ×Ö·û*/
+	/*è®¾ç½®ç­‰å¾…æ—¶é—´å’Œæœ€å°æ¥æ”¶å­—ç¬¦*/
 	newtio.c_cc[VTIME] = 0;
 	newtio.c_cc[VMIN] = 0;
-	/*´¦ÀíÎ´½ÓÊÕ×Ö·û*/
+	/*å¤„ç†æœªæ¥æ”¶å­—ç¬¦*/
 	tcflush(fd, TCIFLUSH);
-	/*¼¤»îĞÂÅäÖÃ*/
+	/*æ¿€æ´»æ–°é…ç½®*/
 	if ((tcsetattr(fd, TCSANOW, &newtio)) != 0)
 	{
 		perror("com set error");
@@ -132,7 +132,7 @@ int uartInit(int nSpeed, int nBits, char nEvent, int nStop, int fd)
 
 /**
 *uartSend
-*@param send_buf[] Òª·¢ËÍµÄÊı¾İ length ·¢ËÍµÄÊı¾İ³¤¶È
+*@param send_buf[] è¦å‘é€çš„æ•°æ® length å‘é€çš„æ•°æ®é•¿åº¦
 */
 void uartSend(char send_buf[], int length, int fd)
 {
@@ -149,7 +149,7 @@ void uartSend(char send_buf[], int length, int fd)
 }
 /**
 *uartSend
-*@param send_buf[] Òª½ÓÊÕµÄÊı¾İ length ½ÓÊÕµÄÊı¾İ³¤¶È
+*@param send_buf[] è¦æ¥æ”¶çš„æ•°æ® length æ¥æ”¶çš„æ•°æ®é•¿åº¦
 */
 void uartRead(char receive_buf[], int length, int fd)
 {

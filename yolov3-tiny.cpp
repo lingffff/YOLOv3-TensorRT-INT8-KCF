@@ -508,7 +508,7 @@ int main(int argc, char** argv) {
     for (;;) {
         cap >> img;
 	    auto start = std::chrono::system_clock::now();
-        if (!count){
+        if (!count){    // detect or track?
             pr_img = preprocess_img(img);
             for (int i = 0; i < INPUT_H * INPUT_W; i++) {
                 data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
@@ -522,7 +522,7 @@ int main(int argc, char** argv) {
             
         }
         else tracker->update(img, r);
-        count = (count + 1) % INTER;
+        count = (count + 1) % INTER;    //detect every INTER=10 frames
 
         auto end = std::chrono::system_clock::now();
         if(res.size()) {
