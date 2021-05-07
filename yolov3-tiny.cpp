@@ -14,6 +14,7 @@
 
 #include "uart.h"
 #include <opencv2/tracking.hpp>
+#include <time.h>
 
 #define CHECK(status) \
     do\
@@ -488,8 +489,12 @@ int main(int argc, char** argv) {
     int count = 1;
     // set input video
 	cv::VideoCapture cap(0);
+    cap.set(10, 0.6);
     // create a tracker object
-	cv::Ptr<cv::TrackerKCF> tracker = cv::TrackerKCF::create();
+
+    cv::TrackerKCF::Params param;
+    param.detect_thresh = 0.5f;
+	cv::Ptr<cv::TrackerKCF> tracker = cv::TrackerKCF::create(param);
     while(!res.size()) { // test first detect to init tracker
         cap >> img;
         pr_img = preprocess_img(img);
@@ -505,9 +510,17 @@ int main(int argc, char** argv) {
     r = get_rect(img, res[0].bbox);
     // initialize the tracker
 	tracker->init(img, r);
+
+    timespec t1, t2;
+    float deltaT;
+    float t_sum = 0;
+    unsigned int counter = 0;
+    bool tracker_valid;
+
     for (;;) {
         cap >> img;
-	    auto start = std::chrono::system_clock::now();
+
+        clock_gettime(CLOCK_MONOTONIC, &t1);
         if (!count){    // detect or track?
             pr_img = preprocess_img(img);
             for (int i = 0; i < INPUT_H * INPUT_W; i++) {
@@ -519,14 +532,13 @@ int main(int argc, char** argv) {
             doInference(*context, data, prob, 1);
             res.clear();
             nms(res, prob);
-            
-        }
-        else tracker->update(img, r);
-        count = (count + 1) % INTER;    //detect every INTER=10 frames
-
-        auto end = std::chrono::system_clock::now();
-        if(res.size()) {
             r = get_rect(img, res[0].bbox);
+        }
+        else tracker_valid = tracker->update(img, r);
+        std::cout << "tracker status:" << tracker_valid << std::endl;
+ 
+        clock_gettime(CLOCK_MONOTONIC, &t2);
+        if(res.size()) { 
             mid_x = int(r.x + r.width / 2);
             mid_y = int(r.y + r.height / 2);
             mid_size = int(r.width);
@@ -536,7 +548,12 @@ int main(int argc, char** argv) {
         else {
             car_Control(0, 0, 0, fd);
         }
-        std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+        count = (count + 1) % INTER;    //detect every INTER=10 frames
+
+        deltaT = ((t2.tv_sec - t1.tv_sec) * 1e9 + t2.tv_nsec - t1.tv_nsec)/1e6;       //ms
+        counter++;
+        t_sum += deltaT;
+        std::cout << t_sum/counter << "ms MMMMM" << deltaT << std::endl;
         cv::imshow("frame", img);
         if (cv::waitKey(1) == 27) break;
     }
