@@ -144,7 +144,7 @@ void uartSend(char send_buf[], int length, int fd)
 	}
 	else
 	{
-		printf("Send success!\n");
+		//printf("Send success!\n");
 	}
 }
 /**

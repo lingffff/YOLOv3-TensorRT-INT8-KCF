@@ -110,6 +110,7 @@ bool cmp(const Yolo::Detection& a, const Yolo::Detection& b) {
 }
 
 void nms(std::vector<Yolo::Detection>& res, float *output, float nms_thresh = NMS_THRESH) {
+    if(!res.empty()) res.pop_back();
     std::map<float, std::vector<Yolo::Detection>> m;
     for (int i = 0; i < output[0] && i < 1000; i++) {
         if (output[1 + 7 * i + 4] <= BBOX_CONF_THRESH) continue;
@@ -387,8 +388,8 @@ int read_files_in_dir(const char *p_dir_name, std::vector<std::string> &file_nam
 #define STOP_Y 420
 #define INTER 10
 
-// Some orders
-#define do_stop     "\xff\xfe\x01\x00\x00\x00\x00\x00\x00\x00"
+#define CAR_STOP "\xff\xfe\x01\x00\x00\x00\x00\x00\x00\x00"
+
 
 void car_Control(int x, int y, int size, int f)
 {
@@ -486,7 +487,6 @@ int main(int argc, char** argv) {
     cv::Mat img, pr_img;
     std::vector<Yolo::Detection> res;
     cv::Rect2d r;
-    int count = 1;
     // set input video
 	cv::VideoCapture cap(0);
     cap.set(10, 0.6);
@@ -495,7 +495,7 @@ int main(int argc, char** argv) {
     cv::TrackerKCF::Params param;
     param.detect_thresh = 0.5f;
 	cv::Ptr<cv::TrackerKCF> tracker = cv::TrackerKCF::create(param);
-    while(!res.size()) { // test first detect to init tracker
+    do { // test first detect to init tracker
         cap >> img;
         pr_img = preprocess_img(img);
         for (int i = 0; i < INPUT_H * INPUT_W; i++) {
@@ -506,7 +506,7 @@ int main(int argc, char** argv) {
         // Run inference
         doInference(*context, data, prob, 1);
         nms(res, prob);
-    }
+    } while(res.empty());
     r = get_rect(img, res[0].bbox);
     // initialize the tracker
 	tracker->init(img, r);
@@ -519,50 +519,45 @@ int main(int argc, char** argv) {
 
     for (;;) {
         cap >> img;
-
         clock_gettime(CLOCK_MONOTONIC, &t1);
-        if (!count){    // detect or track?
-            pr_img = preprocess_img(img);
-            for (int i = 0; i < INPUT_H * INPUT_W; i++) {
-                data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
-                data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
-                data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
-            }
-            // Run inference
-            doInference(*context, data, prob, 1);
-            res.clear();
-            nms(res, prob);
+
+        tracker_valid = tracker->update(img, r);
+        std::cout << "tracker status: " << tracker_valid << std::endl;
+        if (!tracker_valid){            // cannot track the object, then detect
+            uartSend(CAR_STOP, 10, fd);         
+            do { // test first detect to init tracker
+                pr_img = preprocess_img(img);
+                for (int i = 0; i < INPUT_H * INPUT_W; i++) {
+                    data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
+                    data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
+                    data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
+                }
+                // Run inference
+                doInference(*context, data, prob, 1);
+                nms(res, prob);
+                std::cout << "res.size: " << res.size() << std::endl;
+            } while(res.empty());
             r = get_rect(img, res[0].bbox);
         }
-        else tracker_valid = tracker->update(img, r);
-        std::cout << "tracker status:" << tracker_valid << std::endl;
- 
         clock_gettime(CLOCK_MONOTONIC, &t2);
-        if(res.size()) { 
-            mid_x = int(r.x + r.width / 2);
-            mid_y = int(r.y + r.height / 2);
-            mid_size = int(r.width);
-            car_Control(mid_x, mid_y, mid_size, fd);
-            cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
-        }
-        else {
-            car_Control(0, 0, 0, fd);
-        }
-        count = (count + 1) % INTER;    //detect every INTER=10 frames
+        mid_x = int(r.x + r.width / 2);
+        mid_y = int(r.y + r.height / 2);
+        mid_size = int(r.width);
+        car_Control(mid_x, mid_y, mid_size, fd);
+        cv::rectangle(img, r, cv::Scalar(255, 0, 0), 2);
 
         deltaT = ((t2.tv_sec - t1.tv_sec) * 1e9 + t2.tv_nsec - t1.tv_nsec)/1e6;       //ms
-        counter++;
-        t_sum += deltaT;
-        std::cout << t_sum/counter << "ms MMMMM" << deltaT << std::endl;
+        counter++; t_sum += deltaT;
+        std::cout << "now: " << deltaT << "\taverage: " << t_sum/counter << std::endl;
+
         cv::imshow("frame", img);
         if (cv::waitKey(1) == 27) break;
     }
-
     // Destroy the engine
     context->destroy();
     engine->destroy();
     runtime->destroy();
-    uartSend(do_stop, 10, fd);
+    uartSend(CAR_STOP, 10, fd);
 	close(fd);
     return 0;
 }
