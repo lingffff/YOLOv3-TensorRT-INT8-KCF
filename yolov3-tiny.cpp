@@ -506,6 +506,8 @@ int main(int argc, char** argv) {
         // Run inference
         doInference(*context, data, prob, 1);
         nms(res, prob);
+        cv::imshow("frame", img);
+        if (cv::waitKey(1) == 27) break;
     } while(res.empty());
     r = get_rect(img, res[0].bbox);
     // initialize the tracker
@@ -515,7 +517,7 @@ int main(int argc, char** argv) {
     float deltaT;
     float t_sum = 0;
     unsigned int counter = 0;
-    bool tracker_valid;
+    bool tracker_valid, detect_valid;
 
     for (;;) {
         cap >> img;
@@ -523,32 +525,33 @@ int main(int argc, char** argv) {
 
         tracker_valid = tracker->update(img, r);
         std::cout << "tracker status: " << tracker_valid << std::endl;
-        if (!tracker_valid){            // cannot track the object, then detect
-            uartSend(CAR_STOP, 10, fd);         
-            do { // test first detect to init tracker
-                pr_img = preprocess_img(img);
-                for (int i = 0; i < INPUT_H * INPUT_W; i++) {
-                    data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
-                    data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
-                    data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
-                }
-                // Run inference
-                doInference(*context, data, prob, 1);
-                nms(res, prob);
-                std::cout << "res.size: " << res.size() << std::endl;
-            } while(res.empty());
-            r = get_rect(img, res[0].bbox);
+        if (!tracker_valid){            // cannot track the object, then detect        
+            pr_img = preprocess_img(img);
+            for (int i = 0; i < INPUT_H * INPUT_W; i++) {
+                data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
+                data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
+                data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
+            }
+            // Run inference
+            doInference(*context, data, prob, 1);
+            nms(res, prob);
+            detect_valid = (bool) !res.empty();
+            if(detect_valid) r = get_rect(img, res[0].bbox);
         }
         clock_gettime(CLOCK_MONOTONIC, &t2);
-        mid_x = int(r.x + r.width / 2);
-        mid_y = int(r.y + r.height / 2);
-        mid_size = int(r.width);
-        car_Control(mid_x, mid_y, mid_size, fd);
-        cv::rectangle(img, r, cv::Scalar(255, 0, 0), 2);
-
+        if(tracker_valid || detect_valid){
+            mid_x = int(r.x + r.width / 2);
+            mid_y = int(r.y + r.height / 2);
+            mid_size = int(r.width);
+            car_Control(mid_x, mid_y, mid_size, fd);
+            cv::rectangle(img, r, cv::Scalar(255, 0, 0), 2);
+        }
+        else{
+            uartSend(CAR_STOP, 10, fd);  
+        }
         deltaT = ((t2.tv_sec - t1.tv_sec) * 1e9 + t2.tv_nsec - t1.tv_nsec)/1e6;       //ms
         counter++; t_sum += deltaT;
-        std::cout << "now: " << deltaT << "\taverage: " << t_sum/counter << std::endl;
+        std::cout << "now: " << deltaT << " ms\taverage: " << t_sum/counter << "ms" << std::endl;
 
         cv::imshow("frame", img);
         if (cv::waitKey(1) == 27) break;
