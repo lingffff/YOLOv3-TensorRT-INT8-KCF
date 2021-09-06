@@ -1,0 +1,5 @@
+classes=1
+train=redball/train.txt
+valid=redball/test.txt
+names=redball/redball.names
+backup=backup

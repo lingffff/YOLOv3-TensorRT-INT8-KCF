@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 
-project(yolov3-tiny)
+project(yolov3-tiny-int8)
 
 add_definitions(-std=c++11)
 
@@ -25,17 +25,16 @@ endif()
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Ofast -Wfatal-errors -D_MWAITXINTRIN_H_INCLUDED")
 
 #cuda_add_library(leaky ${PROJECT_SOURCE_DIR}/leaky.cu)
-cuda_add_library(yololayer SHARED ${PROJECT_SOURCE_DIR}/yololayer.cu)
+cuda_add_library(yololayer SHARED ${PROJECT_SOURCE_DIR}/src/yololayer.cu)
 target_link_libraries(yololayer nvinfer cudart)
 
 find_package(OpenCV)
 include_directories(OpenCV_INCLUDE_DIRS)
 
-add_executable(yolov3-tiny ${PROJECT_SOURCE_DIR}/yolov3-tiny.cpp ${PROJECT_SOURCE_DIR}/uart.cpp)
-target_link_libraries(yolov3-tiny nvinfer)
-target_link_libraries(yolov3-tiny cudart)
-target_link_libraries(yolov3-tiny yololayer)
-target_link_libraries(yolov3-tiny ${OpenCV_LIBS})
+add_executable(build_engine ${PROJECT_SOURCE_DIR}/build_engine.cpp)
+add_executable(detect ${PROJECT_SOURCE_DIR}/detect.cpp ${PROJECT_SOURCE_DIR}/src/uart.cpp)
 
-add_definitions(-O2 -pthread)
+target_link_libraries(build_engine nvinfer cudart yololayer ${OpenCV_LIBS})
+target_link_libraries(detect nvinfer cudart yololayer ${OpenCV_LIBS})
 
+add_definitions(-pthread -g)

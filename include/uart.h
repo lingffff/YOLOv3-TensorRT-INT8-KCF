@@ -1,3 +1,6 @@
+#ifndef UART_H_
+#define UART_H_
+
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -8,3 +11,5 @@ int openUart(int comport);
 int uartInit(int nSpeed, int nBits, char nEvent, int nStop, int fd);
 void uartSend(char send_buf[], int length, int fd);
 void uartRead(char receive_buf[], int length, int fd);
+
+#endif

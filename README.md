@@ -1,49 +1,78 @@
-# yolov3-tiny
+# YOLOv3tiny-TensorRT-KCF
 
-The Pytorch implementation is [ultralytics/yolov3](https://github.com/ultralytics/yolov3).
+## Description
+**YOLOv3tiny-TensorRT-KCF** is a TensorRT Int8-Quantization implementation of YOLOv3-tiny on NVIDIA Jetson Xavier NX Board. The dataset we provide is about a red ball. So we also use this to drive a car to catch the red ball, along with KCF, a traditional Object Tracking method.
 
-## Excute:
-
+## Tutorials
+### 1. Train
+On GPU server, not NX.
+```bash
+git clone https://github.com/lingffff/YOLOv3tiny-TensorRT-KCF.git
+cd YOLOv3tiny-TensorRT-KCF
+cd yolov3
 ```
-1. generate yolov3-tiny.wts from pytorch implementation with yolov3-tiny.cfg and yolov3-tiny.weights, or download .wts from model zoo
-
-git clone https://github.com/ultralytics/yolov3.git
-// download its weights 'yolov3-tiny.pt' or 'yolov3-tiny.weights'
-// put tensorrtx/yolov3-tiny/gen_wts.py into ultralytics/yolov3 and run
-python gen_wts.py yolov3-tiny.weights
-// a file 'yolov3-tiny.wts' will be generated.
-
-2. put yolov3-tiny.wts into tensorrtx/yolov3-tiny, build and run
-
-// go to tensorrtx/yolov3-tiny
+Download redball dataset from [here](), unzip and replace the folder **redball**. Then start training.
+```bash
+python train.py --device 0
+```
+### 2. Transfer
+Now we get YOLOv3-tiny weights in **weights/best.pt**. Transfer it to binary file **redball.wts**, which convert weights to TensorRT for building inference engine.
+```bash
+python gen_wts.py
+```
+Then copy **output/redball.wts** to NX Board.
+### 3. Build Engine
+On NX Platform below.
+```bash
+git clone https://github.com/lingffff/YOLOv3tiny-TensorRT-KCF.git
+cd YOLOv3tiny-TensorRT-KCF
+```
+Build the project.
+```bash
 mkdir build
 cd build
 cmake ..
 make
-sudo ./yolov3-tiny -s             // serialize model to plan file i.e. 'yolov3-tiny.engine'
-sudo ./yolov3-tiny -d  ../../yolov3-spp/samples // deserialize plan file and run inference, the images in samples will be processed.
-
-3. check the images generated, as follows. _zidane.jpg and _bus.jpg
 ```
+Now we get executable file **build_engine** and **detect**.  
+Run **build_engine**. Use **-s** argument to specify quantization options: int8, fp16, fp32(default).
+```bash
+./build_engine -s int8
+```
+### 4. Inference
+Run **detect** to detect pictures or camera video. You can also check KCF tracking method here by other options below.  
+```bash
+./detect -p ../samples
+```
+Options:  
+| Argument | Description |
+| :-: | :-: |
+| -p \<folder\> | Detect pictures in the folder. |
+| -v  | Detect camera video stream.  |
+| -t  | Detect video along with KCF tracking method.  |
 
-<p align="center">
-<img src="https://user-images.githubusercontent.com/15235574/78247927-4d9fac00-751e-11ea-8b1b-704a0aeb3fcf.jpg">
-</p>
+## Benchmark
+| Models | Device | BatchSize |	Mode | Input Size | Speed |
+| :-: | :-: | :-: | :-: | :-: | :-:  |
+| YOLOv3-tiny | NX | 1 | FP32 | 416x416 | 26ms |
+| YOLOv3-tiny | NX | 1 | FP16 | 416x416 | 19ms |
+| YOLOv3-tiny | NX | 1 | INT8 | 416x416 | 20ms |
 
-<p align="center">
-<img src="https://user-images.githubusercontent.com/15235574/78247970-60b27c00-751e-11ea-88df-41473fed4823.jpg">
-</p>
+## TODO
+- [ ] Convert weights to TensorRT by more common way, like ONNX.
+- [ ] Run detection and tracking in a multi-thread way.
+- [ ] Learn the source codes of TensorRT and implement an infrerence framework myself.
 
-## Config
+## Acknowledge
 
-- Input shape defined in yololayer.h
-- Number of classes defined in yololayer.h
-- FP16/FP32 can be selected by the macro in yolov3-tiny.cpp
-- GPU id can be selected by the macro in yolov3-tiny.cpp
-- NMS thresh in yolov3-tiny.cpp
-- BBox confidence thresh in yolov3-tiny.cpp
+YOLOv3 Pytorch implementation from [ultralytics/yolov3](https://github.com/ultralytics/yolov3).  
+YOLOv3 TensorRT implementation from [wang-xinyu/tensorrtx](https://github.com/wang-xinyu/tensorrtx).  
+TensorRT Int8 implementation from [NVIDIA/TensorRT/samples/sampleINT8](https://github.com/NVIDIA/TensorRT/tree/master/samples/sampleINT8).  
 
-## More Information
+With my sincerely appreciation!
 
-See the readme in [home page.](https://github.com/wang-xinyu/tensorrtx)
-
+## About me  
+Just call me **Al** (not ai but al. LOL.) / Albert / Ling Feng (in Chinese, pronounces like ***lin-phone***).  
+E-mail: ling@stu.pku.edu.cn  
+Gitee: https://gitee.com/lingff  
+CSDN: https://blog.csdn.net/weixin_43214408  
