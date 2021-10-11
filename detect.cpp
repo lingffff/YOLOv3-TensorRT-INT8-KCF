@@ -11,6 +11,8 @@
 #include "logging.h"
 #include "yololayer.h"
 
+#include <opencv2/tracking.hpp>
+
 #define CHECK(status) \
     do\
     {\
@@ -22,7 +24,6 @@
         }\
     } while (0)
 
-#define USE_FP16  // comment out this if want to use FP32
 #define DEVICE 0  // GPU id
 #define NMS_THRESH 0.5
 #define BBOX_CONF_THRESH 0.4
@@ -192,27 +193,32 @@ int main(int argc, char** argv) {
     char *trtModelStream{nullptr};
     size_t size{0};
 
+    std::vector<std::string> file_names;
+    int mode = 0;
     if (argc == 3 && std::string(argv[1]) == "-d") {
-        std::ifstream file("yolov3-tiny.engine", std::ios::binary);
-        if (file.good()) {
-            file.seekg(0, file.end);
-            size = file.tellg();
-            file.seekg(0, file.beg);
-            trtModelStream = new char[size];
-            assert(trtModelStream);
-            file.read(trtModelStream, size);
-            file.close();
+        mode = 1;
+        if (read_files_in_dir(argv[2], file_names) < 0) {
+            std::cout << "Read image files failed." << std::endl;
+            return -1;
         }
+    } else if (argc >= 2 && std::string(argv[1]) == "-v") {
+        mode = 2;
+    } else if (argc >= 2 && std::string(argv[1]) == "-t") {
+        mode = 3;
     } else {
         std::cerr << "Wrong arguments!" << std::endl;
-        std::cerr << "./detect -d ../samples" << std::endl;
         return -1;
     }
 
-    std::vector<std::string> file_names;
-    if (read_files_in_dir(argv[2], file_names) < 0) {
-        std::cout << "read_files_in_dir failed." << std::endl;
-        return -1;
+    std::ifstream file("yolov3-tiny.engine", std::ios::binary);
+    if (file.good()) {
+        file.seekg(0, file.end);
+        size = file.tellg();
+        file.seekg(0, file.beg);
+        trtModelStream = new char[size];
+        assert(trtModelStream);
+        file.read(trtModelStream, size);
+        file.close();
     }
 
     // prepare input data ---------------------------
@@ -228,43 +234,125 @@ int main(int argc, char** argv) {
     assert(context != nullptr);
     delete[] trtModelStream;
 
-    int fcount = 0;
-    for (auto f: file_names) {
-        fcount++;
-        std::cout << fcount << "  " << f << std::endl;
-        cv::Mat img = cv::imread(std::string(argv[2]) + "/" + f);
-        if (img.empty()) continue;
-        cv::Mat pr_img = preprocess_img(img);
-        for (int i = 0; i < INPUT_H * INPUT_W; i++) {
-            data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
-            data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
-            data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
-        }
+    cv::Mat img, pr_img;
+    std::vector<Yolo::Detection> res;
 
-        // Run inference
-        auto start = std::chrono::system_clock::now();
-        doInference(*context, data, prob, 1);
-        auto end = std::chrono::system_clock::now();
-        std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-        std::vector<Yolo::Detection> res;
-        nms(res, prob);
-        for (int i=0; i<20; i++) {
-            std::cout << prob[i] << ",";
-        }
-        std::cout << res.size() << std::endl;
-        for (size_t j = 0; j < res.size(); j++) {
-            float *p = (float*)&res[j];
-            for (size_t k = 0; k < 7; k++) {
-                std::cout << p[k] << ", ";
+    if (mode == 1) {
+        int fcount = 0;
+        for (auto f: file_names) {
+            fcount++;
+            std::cout << fcount << "  " << f << std::endl;
+            img = cv::imread(std::string(argv[2]) + "/" + f);
+            if (img.empty()) continue;
+            pr_img = preprocess_img(img);
+            for (int i = 0; i < INPUT_H * INPUT_W; i++) {
+                data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
+                data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
+                data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
             }
-            std::cout << std::endl;
-            cv::Rect r = get_rect(img, res[j].bbox);
-            cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
-            cv::putText(img, std::to_string((int)res[j].class_id), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0xFF), 2);
-        }
-        cv::imwrite("_" + f, img);
-    }
 
+            // Run inference
+            auto start = std::chrono::system_clock::now();
+            doInference(*context, data, prob, 1);
+            auto end = std::chrono::system_clock::now();
+            std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+            nms(res, prob);
+            for (int i=0; i<20; i++) {
+                std::cout << prob[i] << ",";
+            }
+            std::cout << res.size() << std::endl;
+            for (size_t j = 0; j < res.size(); j++) {
+                float *p = (float*)&res[j];
+                for (size_t k = 0; k < 7; k++) {
+                    std::cout << p[k] << ", ";
+                }
+                std::cout << std::endl;
+                cv::Rect2d r = get_rect(img, res[j].bbox);
+                cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
+                cv::putText(img, std::to_string((int)res[j].class_id), cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0xFF), 2);
+            }
+            res.clear();
+            cv::imwrite("_" + f, img);
+        }
+    }
+    else if (mode == 2) {
+        // set input video
+	    cv::VideoCapture cap(0); 
+        while (true) {
+            cap >> img;
+            // clock_gettime(CLOCK_MONOTONIC, &t1);
+            pr_img = preprocess_img(img);
+            for (int i = 0; i < INPUT_H * INPUT_W; i++) {
+                data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
+                data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
+                data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
+            }
+            // Run inference
+            doInference(*context, data, prob, 1);
+            nms(res, prob);
+            for (size_t j = 0; j < res.size(); j++) {
+                cv::Rect2d r = get_rect(img, res[j].bbox);
+                cv::rectangle(img, r, cv::Scalar(255, 0, 0), 2);
+            }
+            // clock_gettime(CLOCK_MONOTONIC, &t2);
+            res.clear();
+            cv::imshow("camera", img);
+            if (cv::waitKey(1) == 27 || cv::waitKey(1) == 113) break;
+        }
+    }
+    else if (mode == 3) {
+        // set input video
+	    cv::VideoCapture cap(0); 
+        // init KCF
+        cv::TrackerKCF::Params param;
+        param.detect_thresh = 0.5f;
+        cv::Ptr<cv::TrackerKCF> tracker = cv::TrackerKCF::create(param);
+        do { // test first detect to init tracker
+            cap >> img;
+            pr_img = preprocess_img(img);
+            for (int i = 0; i < INPUT_H * INPUT_W; i++) {
+                data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
+                data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
+                data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
+            }
+            // Run inference
+            doInference(*context, data, prob, 1);
+            nms(res, prob);
+            cv::imshow("camera", img);
+            if (cv::waitKey(1) == 27 || cv::waitKey(1) == 113) break;
+        } while(res.empty());
+        cv::Rect2d r = get_rect(img, res[0].bbox);
+        // initialize the tracker
+        tracker->init(img, r);
+
+        bool tracker_valid = false, detect_valid = false;
+        while (true) {
+            cap >> img;
+            // clock_gettime(CLOCK_MONOTONIC, &t1);
+            tracker_valid = tracker->update(img, r);
+            if (!tracker_valid) {  // cannot track the object, then detect        
+                pr_img = preprocess_img(img);
+                for (int i = 0; i < INPUT_H * INPUT_W; i++) {
+                    data[i] = pr_img.at<cv::Vec3b>(i)[2] / 255.0;
+                    data[i + INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[1] / 255.0;
+                    data[i + 2 * INPUT_H * INPUT_W] = pr_img.at<cv::Vec3b>(i)[0] / 255.0;
+                }
+                // Run inference
+                doInference(*context, data, prob, 1);
+                res.clear();
+                nms(res, prob);
+                detect_valid = (bool) !res.empty();
+                if(detect_valid) r = get_rect(img, res[0].bbox);
+            }
+            printf("tracker status: %d, detect status: %d\n", tracker_valid, detect_valid);
+            // clock_gettime(CLOCK_MONOTONIC, &t2);
+            if (tracker_valid || detect_valid) {
+                cv::rectangle(img, r, cv::Scalar(255, 0, 0), 2);
+            }
+            cv::imshow("camera", img);
+            if (cv::waitKey(1) == 27 || cv::waitKey(1) == 113) break;
+        }
+    }
     // Destroy the engine
     context->destroy();
     engine->destroy();
