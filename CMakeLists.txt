@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 
-project(yolov3-tiny-int8)
+project(yolov3-int8)
 
 add_definitions(-std=c++11)
 
@@ -30,6 +30,11 @@ target_link_libraries(yololayer nvinfer cudart)
 
 find_package(OpenCV)
 include_directories(OpenCV_INCLUDE_DIRS)
+
+option(TINY "use YOLOv3-tiny model" OFF)
+if (TINY) 
+	add_definitions(-DTINY)
+endif(TINY)
 
 add_executable(build_engine ${PROJECT_SOURCE_DIR}/build_engine.cpp)
 add_executable(detect ${PROJECT_SOURCE_DIR}/detect.cpp ${PROJECT_SOURCE_DIR}/src/uart.cpp)

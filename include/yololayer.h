@@ -9,7 +9,7 @@ namespace Yolo
 {
     static constexpr int CHECK_COUNT = 3;
     static constexpr float IGNORE_THRESH = 0.3f;
-    static constexpr int MAX_OUTPUT_BBOX_COUNT = 100;
+    static constexpr int MAX_OUTPUT_BBOX_COUNT = 1000;
     static constexpr int CLASS_NUM = 1;
     static constexpr int INPUT_H = 416;
     static constexpr int INPUT_W = 416;
@@ -20,18 +20,34 @@ namespace Yolo
         int height;
         float anchors[CHECK_COUNT*2];
     };
-
+#ifdef TINY
     static constexpr YoloKernel yolo1 = {
         INPUT_W / 32,
         INPUT_H / 32,
-        {77,77, 90,86, 102,100}
+        {77,77, 90,86, 102,100}  // generate by k-means
     };
     static constexpr YoloKernel yolo2 = {
         INPUT_W / 16,
         INPUT_H / 16,
         {51,21, 58,54, 64,68}
     };
-
+#else
+    static constexpr YoloKernel yolo1 = {
+        INPUT_W / 32,
+        INPUT_H / 32,
+        {120,63, 92,91, 105,102}
+    };
+    static constexpr YoloKernel yolo2 = {
+        INPUT_W / 16,
+        INPUT_H / 16,
+        {62,62, 72,74, 84,83}
+    };
+    static constexpr YoloKernel yolo3 = {
+        INPUT_W / 8,
+        INPUT_H / 8,
+        {48,17, 24,64, 56,39}
+    };
+#endif
     static constexpr int LOCATIONS = 4;
     struct alignas(float) Detection{
         //x y w h

@@ -209,8 +209,11 @@ int main(int argc, char** argv) {
         std::cerr << "Wrong arguments!" << std::endl;
         return -1;
     }
-
+#ifdef TINY
     std::ifstream file("yolov3-tiny.engine", std::ios::binary);
+#else
+    std::ifstream file("yolov3.engine", std::ios::binary);
+#endif
     if (file.good()) {
         file.seekg(0, file.end);
         size = file.tellg();

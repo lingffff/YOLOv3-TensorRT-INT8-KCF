@@ -113,7 +113,7 @@ def train(hyp):
 
     start_epoch = 0
     best_fitness = 0.0
-    attempt_download(weights)
+    # attempt_download(weights)
     if weights.endswith('.pt'):  # pytorch format
         # possible weights are '*.pt', 'yolov3-spp.pt', 'yolov3-tiny.pt' etc.
         ckpt = torch.load(weights, map_location=device)
@@ -391,8 +391,8 @@ def train(hyp):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=60)  # 500200 batches at bs 16, 117263 COCO images = 273 epochs
-    parser.add_argument('--batch-size', type=int, default=32)  # effective bs = batch_size * accumulate = 16 * 4 = 64
+    parser.add_argument('--epochs', type=int, default=20)  # 500200 batches at bs 16, 117263 COCO images = 273 epochs
+    parser.add_argument('--batch-size', type=int, default=8)  # effective bs = batch_size * accumulate = 16 * 4 = 64
     parser.add_argument('--cfg', type=str, default='redball/redball.cfg', help='*.cfg path')
     parser.add_argument('--data', type=str, default='redball/redball.data', help='*.data path')
     parser.add_argument('--multi-scale', action='store_true', help='adjust (67%% - 150%%) img_size every 10 batches')
@@ -404,13 +404,19 @@ if __name__ == '__main__':
     parser.add_argument('--evolve', action='store_true', help='evolve hyperparameters')
     parser.add_argument('--bucket', type=str, default='', help='gsutil bucket')
     parser.add_argument('--cache-images', action='store_true', help='cache images for faster training')
-    parser.add_argument('--weights', type=str, default='weights/yolov3-tiny.weights', help='initial weights path')
+    parser.add_argument('--weights', type=str, default='weights/yolov3.weights', help='initial weights path')
     parser.add_argument('--name', default='', help='renames results.txt to results_name.txt if supplied')
     parser.add_argument('--device', default='', help='device id (i.e. 0 or 0,1 or cpu)')
     parser.add_argument('--adam', action='store_true', help='use adam optimizer')
     parser.add_argument('--single-cls', action='store_true', help='train as single-class dataset')
     parser.add_argument('--freeze-layers', action='store_true', help='Freeze non-output layers')
+    parser.add_argument('--tiny', action='store_true', help='use YOLOv3-tiny model and recommended training parameters on GTX2080Ti')
     opt = parser.parse_args()
+    if opt.tiny:
+        opt.epochs = 60
+        opt.batch_size = 32
+        opt.cfg = 'redball/redball-tiny.cfg'
+        opt.weights = 'weights/yolov3-tiny.weights'
     opt.weights = last if opt.resume and not opt.weights else opt.weights
     # check_git_status()
     opt.cfg = check_file(opt.cfg)  # check file
