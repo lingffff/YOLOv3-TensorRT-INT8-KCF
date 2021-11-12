@@ -7,7 +7,7 @@
 - See [yolov3/requirements.txt](https://github.com/lingffff/YOLOv3-TensorRT-INT8-KCF/blob/master/yolov3/requirements.txt).
 ### NVIDIA Jetson Xavier NX
 - TensorRT >= 7.0.0 (Pre-installed on NX.)
-- OpenCV and opencv_contrib == 3.4.0 (See [here](https://blog.csdn.net/yuejing987/article/details/84986195) for help.)
+- OpenCV and opencv_contrib == 3.4.0 (See [here](https://blog.csdn.net/yuejing987/article/details/84986195) for installation help.)
 
 ## Tutorials
 ### 1. Train
@@ -52,12 +52,12 @@ Run **build_engine**. Use **-s** argument to specify quantization options: int8,
 ### 4. Inference
 Run **detect** to detect pictures or camera video. You can also check KCF tracking method here by other options below.  
 ```bash
-./detect -p ../samples
+./detect -d ../samples
 ```
 Options:  
 | Argument | Description |
 | :-: | :-: |
-| -p \<folder\> | Detect pictures in the folder. |
+| -d \<folder\> | Detect pictures in the folder. |
 | -v  | Detect camera video stream.  |
 | -t  | Detect video along with KCF tracking method.  |
 
