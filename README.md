@@ -1,7 +1,11 @@
 # YOLOv3-TensorRT-INT8-KCF
 
 ## Description
-**YOLOv3-TensorRT-INT8-KCF** is a TensorRT Int8-Quantization implementation of YOLOv3 (and tiny) on NVIDIA Jetson Xavier NX Board. The dataset we provide is a red ball. So we also use this to drive a car to catch the red ball, along with KCF, a traditional Object Tracking method.
+**YOLOv3-TensorRT-INT8-KCF** is a TensorRT Int8-Quantization implementation of YOLOv3 (and tiny) on NVIDIA Jetson Xavier NX Board. The dataset we provide is a red ball. So we also use this to drive a car to catch the red ball, along with KCF, a traditional Object Tracking method.  
+
+## Demo Video
+![image](https://github.com/lingffff/YOLOv3-TensorRT-INT8-KCF/blob/master/data/demo.gif)   
+
 ## Dependencies
 ### GPU server (e.g. GTX2080Ti)
 - See [yolov3/requirements.txt](https://github.com/lingffff/YOLOv3-TensorRT-INT8-KCF/blob/master/yolov3/requirements.txt).
